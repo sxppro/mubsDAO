@@ -4,6 +4,7 @@ import './index.css';
 import App from './App.jsx';
 
 import { ThirdwebWeb3Provider } from '@3rdweb/hooks';
+import { ChakraProvider } from '@chakra-ui/react';
 
 // Define supported chains
 const supportedChains = [4];
@@ -25,7 +26,9 @@ ReactDOM.render(
       connectors={connectors}
       supportedChainIds={supportedChains}
     >
-      <App />
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
     </ThirdwebWeb3Provider>
   </React.StrictMode>,
   document.getElementById('root')
