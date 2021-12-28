@@ -21,6 +21,9 @@ const App = () => {
   const [isClaiming, setIsClaiming] = useState(false);
   const [memberTokenAmounts, setMemberTokenAmounts] = useState({});
   const [memberAddresses, setMemberAddresses] = useState([]);
+  const [proposals, setProposals] = useState([]);
+  const [isVoting, setIsVoting] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
 
   /**
    * Utility to shorten user addresses
@@ -137,6 +140,47 @@ const App = () => {
       })
   }, [hasClaimedNFT])
 
+  /**
+   * Retrieve proposals
+   */
+  useEffect(() => {
+    if (!hasClaimedNFT) {
+      return;
+    }
+
+    voteModule
+      .getAll()
+      .then((proposals) => {
+        setProposals(proposals);
+        console.log("ℹ️ Proposals: ", proposals);
+      })
+      .catch((err) => {
+        console.error("🛑 Failed to get proposals: ", err);
+      })
+  }, [hasClaimedNFT])
+
+  /**
+   * Check if user has already voted
+   */
+  useEffect(() => {
+    if (!hasClaimedNFT) {
+      return;
+    }
+    if (!proposals.length) {
+      return;
+    }
+
+    voteModule
+      .hasVoted(proposals[0].proposalId, address)
+      .then((hasVoted) => {
+        setHasVoted(hasVoted);
+        console.log(`ℹ️ User has already voted`);
+      })
+      .catch((err) => {
+        console.error("🛑 Failed to check if user has already voted: ", err);
+      })
+  }, [hasClaimedNFT, proposals, address])
+
   // Rendering
 
   if (!address) {
@@ -177,8 +221,83 @@ const App = () => {
                 </Tbody>
               </Table>
             </div>
+            <div>
+              <Heading as="h2">Proposals</Heading>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Disable button before doing async things to prevent double clicks
+                setIsVoting(true);
+
+                // Get votes from form
+                const votes = proposals.map((proposal) => {
+                  let voteResult = {
+                    proposalId: proposal.proposalId,
+                    vote: 2 // Abstain by default
+                  };
+                  proposal.votes.forEach((vote) => {
+                    const elem = document.getElementById(proposal.proposalId + '-' + vote.type);
+                    if (elem.checked) {
+                      voteResult.vote = vote.type;
+                      return;
+                    }
+                  });
+                  return voteResult;
+                })
+
+                // Ensure user delegates token to vote
+                try {
+                  const delegation = await tokenModule.getDelegationOf(address);
+                  if (delegation === ethers.constants.AddressZero) {
+                    await tokenModule.delegateTo(address)
+                  }
+
+                  // Vote on proposals
+                  try {
+                    await Promise.all(
+                      votes.map(async (vote) => {
+                        // Check if proposal is open for voting
+                        const proposal = await voteModule.get(vote.proposalId);
+                        if (proposal.state === 4) {
+                          // Ready to be executed
+                          return voteModule.execute(vote.proposalId)
+                        }
+                      })
+                    )
+                    setHasVoted(true);
+                    console.log(`✅ Successfully voted`);
+                  } catch (err) {
+                    console.error("🛑 Failed to execute vote: ", err);
+                  }
+                } catch (err) {
+                  console.error("🛑 Failed to vote: ", err);
+                } finally {
+                  setIsVoting(false); // Re-enable voting button
+                }
+              }}>
+                {proposals.map((proposal, index) => (
+                  <div key={proposal.proposalId} className="card">
+                    <Heading as="h5" size="lg">{proposal.description}</Heading>
+                    <div>
+                      {proposal.votes.map((vote) => (
+                        <div key={vote.type}>
+                          <input type="radio" id={proposal.proposalId + "-" + vote.type} name={proposal.proposalId} value={vote.type} defaultChecked={vote.type === 2}></input>
+                          <label htmlFor={proposal.proposal + "-" + vote.type}>{vote.label}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <Button isLoading={isVoting} disabled={hasVoted} type="submit" loadingText="Voting">
+                  {hasVoted ? "Already Voted" : "Submit Votes"}
+                </Button>
+                <small>This will trigger multiple transactions that you will need to sign.</small>
+              </form>
+            </div>
           </div>
         </VStack>
+
       </div>
     )
   }
