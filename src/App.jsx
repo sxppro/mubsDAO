@@ -3,6 +3,7 @@ import { useWeb3 } from "@3rdweb/hooks";
 import { ThirdwebSDK } from "@3rdweb/sdk"
 import { Heading, Button, VStack, Text, useToast, Table, Thead, Tbody, Tr, Th, Td } from '@chakra-ui/react'
 import { ethers } from 'ethers';
+import { UnsupportedChainIdError } from '@web3-react/core'
 
 const sdk = new ThirdwebSDK("rinkeby");
 const bundleDropModule = sdk.getBundleDropModule("0x32Beb963A73B70eC4EE47f94b2D534e5E11b05EA")
@@ -174,12 +175,26 @@ const App = () => {
       .hasVoted(proposals[0].proposalId, address)
       .then((hasVoted) => {
         setHasVoted(hasVoted);
-        console.log(`ℹ️ User has already voted`);
+        if (hasVoted) {
+          console.log(`ℹ️ User has already voted`);
+        }
       })
       .catch((err) => {
         console.error("🛑 Failed to check if user has already voted: ", err);
       })
   }, [hasClaimedNFT, proposals, address])
+
+  /**
+   * Error handling for when chain is set to other than Rinkeby
+   */
+  if (error instanceof UnsupportedChainIdError) {
+    return (
+      <div className="unsupported-network">
+        <Heading as="h2">Please connect to Rinkeby</Heading>
+        <Text>This app only works on Rinkeby 😔 Please switch networks in your connected wallet!</Text>
+      </div>
+    )
+  }
 
   // Rendering
 
@@ -201,7 +216,7 @@ const App = () => {
           <Heading bgGradient="linear-gradient(135deg, rgb(235, 110, 52) 0%, rgb(235, 180, 52) 100%)" bgClip="text" size="3xl">MubsDAO</Heading>
           <div>
             <div>
-              <Heading as="h2">Member List</Heading>
+              <Heading as="h2" bgGradient="linear-gradient(135deg, rgb(245, 17, 214) 0%, rgb(245, 17, 70) 100%)" bgClip="text">Member List</Heading>
               <Table className="card" variant="simple" borderRadius={4}>
                 <Thead>
                   <Tr>
@@ -222,7 +237,7 @@ const App = () => {
               </Table>
             </div>
             <div>
-              <Heading as="h2">Proposals</Heading>
+              <Heading as="h2" bgGradient="linear-gradient(135deg, rgb(224, 54, 205) 0%, rgb(22, 234, 245) 100%)" bgClip="text">Proposals</Heading>
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
